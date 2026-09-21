@@ -9,6 +9,7 @@ export type BesoinRow = StockRow & {
   details: DetailNavette[]; // chaque ligne de navette, jamais fusionnée
   doublon: boolean; // la référence apparaît sur plusieurs lignes de navette
   besoin: number; // seuil - dispo - attendu  (> 0 : encore en besoin après navettes)
+  ordre: number | null; // rang de la 1re apparition dans les navettes (ordre des PDF, de haut en bas) ; null si absente
   statut: Statut; // besoin = sous le seuil et pas couvert ; couvert = sous le seuil mais couvert par les navettes ;
   //                 hors = pas sous le seuil, présent dans une navette
 };
@@ -17,8 +18,10 @@ export type BesoinRow = StockRow & {
 // ET toutes celles qui figurent dans une navette, même sans besoin.
 export function computeBesoin(stock: StockRow[], navettes: Navette[]) {
   const parRef = new Map<string, DetailNavette[]>();
+  const ordreRef = new Map<string, number>();
   for (const n of navettes)
     for (const l of n.lignes) {
+      if (!ordreRef.has(l.ref)) ordreRef.set(l.ref, ordreRef.size + 1);
       const arr = parRef.get(l.ref) ?? [];
       arr.push({ fichier: n.fichier, page: l.page, qte: l.qte });
       parRef.set(l.ref, arr);
@@ -35,7 +38,7 @@ export function computeBesoin(stock: StockRow[], navettes: Navette[]) {
     const attendu = details.reduce((t, d) => t + d.qte, 0);
     const besoin = s.seuil - s.dispo - attendu;
     const statut: Statut = !sousSeuil ? "hors" : besoin > 0 ? "besoin" : "couvert";
-    rows.push({ ...s, attendu, details, doublon: details.length > 1, besoin, statut });
+    rows.push({ ...s, attendu, details, doublon: details.length > 1, besoin, ordre: ordreRef.get(s.ref) ?? null, statut });
   }
   rows.sort((a, b) => b.besoin - a.besoin || a.ref.localeCompare(b.ref));
 

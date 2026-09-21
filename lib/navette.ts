@@ -31,7 +31,10 @@ export function parseNavettePages(pages: PageText[]): LigneNavette[] {
     const yBottom = foot.length ? Math.max(...foot.map((i) => i.y)) : 0;
     const inTable = (i: TextItem) => i.y < head.y - 4 && i.y > yBottom;
 
-    const codes = items.filter((i) => inTable(i) && i.x < codeMax && CODE_RE.test(i.str.trim()));
+    // Lignes lues de haut en bas, comme sur le bon (y = distance depuis le bas de la page)
+    const codes = items
+      .filter((i) => inTable(i) && i.x < codeMax && CODE_RE.test(i.str.trim()))
+      .sort((a, b) => b.y - a.y);
     const qtes = items.filter(
       (i) => inTable(i) && i.x >= xMin && i.x + i.w <= xMax + 2 && /^\d+$/.test(clean(i.str))
     );
