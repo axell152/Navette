@@ -39,7 +39,7 @@ function Zone(props: { titre: string; aide: string; accept: string; multiple?: b
   );
 }
 
-type SortKey = "ref" | "libelle" | "dispo" | "seuil" | "reserve" | "neg" | "attendu" | "besoin";
+type SortKey = "ordre" | "ref" | "libelle" | "dispo" | "seuil" | "reserve" | "neg" | "attendu" | "besoin";
 
 export default function Page() {
   const [stock, setStock] = useState<{ rows: StockRow[]; source: string } | null>(null);
@@ -48,7 +48,7 @@ export default function Page() {
   const [q, setQ] = useState("");
   const [neg, setNeg] = useState("");
   const [statut, setStatut] = useState<"" | Statut>("");
-  const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "besoin", dir: -1 });
+  const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "ordre", dir: 1 });
 
   async function onStock(files: File[]) {
     const f = files[0];
@@ -81,6 +81,11 @@ export default function Page() {
       (r) => (!statut || r.statut === statut) && (!neg || r.neg === neg) && (!needle || r.ref.toLowerCase().includes(needle) || r.libelle.toLowerCase().includes(needle))
     );
     return list.sort((a, b) => {
+      if (sort.key === "ordre") {
+        // ordre des PDF ; les références absentes des navettes viennent après, par plus gros besoin
+        const c = ((a.ordre ?? 1e9) - (b.ordre ?? 1e9)) * sort.dir;
+        return c || b.besoin - a.besoin || a.ref.localeCompare(b.ref);
+      }
       const x = a[sort.key], y = b[sort.key];
       const c = typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y), "fr");
       return c * sort.dir || a.ref.localeCompare(b.ref);
@@ -176,7 +181,7 @@ export default function Page() {
               <table>
                 <thead>
                   <tr>
-                    {th("ref", "Article")}{th("libelle", "Libellé")}{th("dispo", "Dispo")}{th("seuil", "Seuil mini")}
+                    {th("ordre", "#")}{th("ref", "Article")}{th("libelle", "Libellé")}{th("dispo", "Dispo")}{th("seuil", "Seuil mini")}
                     {th("reserve", "Reservé")}{th("neg", "NEG")}{th("attendu", "Attendu navettes")}{th("besoin", "Quantité nécessaire", "q")}
                     <th style={{ cursor: "default" }}>Détail navettes</th>
                   </tr>
@@ -184,6 +189,7 @@ export default function Page() {
                 <tbody>
                   {visibles.map((r) => (
                     <tr key={r.ref} className={`s-${r.statut}`}>
+                      <td className="c det">{r.ordre ?? ""}</td>
                       <td>{r.ref}</td>
                       <td>{r.libelle}</td>
                       <td className="n">{fmt(r.dispo)}</td>
