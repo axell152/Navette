@@ -4,6 +4,9 @@ Dépose le stock CEGID (.xlsx ou .csv) et les navettes (bons de préparation PDF
 
 - Le tableau affiche les références sous le seuil (`Stock d'alerte > 0` et `Q. disponible < Stock d'alerte`, comme la
   feuille BESOIN) **et toutes celles qui figurent dans une navette**, même sans besoin.
+- Par défaut, les lignes suivent l'ordre des PDF (navettes dans l'ordre de dépôt, de haut en bas ; colonne `#`), puis les
+  références en besoin absentes des navettes. Une référence présente sur plusieurs lignes se place à sa 1re apparition.
+  Un clic sur un en-tête change le tri, un clic sur `#` revient à l'ordre des PDF.
 - Trois statuts, filtrables : *Encore en besoin* (après navettes), *Couvert par les navettes*, *Pas de besoin*
   (dans une navette mais pas sous le seuil).
 - `Quantité nécessaire = Seuil mini − Dispo − Attendu navettes`.
