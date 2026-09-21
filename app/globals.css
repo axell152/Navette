@@ -31,8 +31,21 @@ tbody tr:nth-child(even) { background: #fafbfc; }
 td.n { text-align: right; font-variant-numeric: tabular-nums; }
 td.c { text-align: center; }
 td.q { font-weight: 700; text-align: center; }
-tr.couvert td { color: var(--doux); }
-tr.couvert td.q { color: var(--vert); }
+/* Couleurs de statut : rouge = sous le seuil après réappro, vert = au-dessus du seuil après réappro, bleu = réappro sans besoin */
+tr.s-besoin td { background: #fdecea; }
+tr.s-besoin:nth-child(even) td { background: #fbdcd8; }
+tr.s-besoin td.q { color: #b03225; }
+tr.s-couvert td { background: #e9f6ee; }
+tr.s-couvert:nth-child(even) td { background: #d9efe1; }
+tr.s-couvert td.q { color: #1e7e4f; }
+tr.s-hors td { background: #e8f1fb; }
+tr.s-hors:nth-child(even) td { background: #d8e7f7; }
+tr.s-hors td.q { color: #2a63a6; }
+.legende { display: flex; flex-wrap: wrap; gap: 16px; margin: 0 0 10px; font-size: 13px; color: var(--doux); }
+.legende span::before { content: ""; display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; border: 1px solid rgba(0,0,0,.15); }
+.legende .rouge::before { background: #fbdcd8; }
+.legende .vert::before { background: #d9efe1; }
+.legende .bleu::before { background: #d8e7f7; }
 .det { font-size: 12px; color: var(--doux); }
 .tag { display: inline-block; font-size: 11px; background: #fff0c9; border: 1px solid #f0d78a; border-radius: 4px; padding: 0 5px; margin-left: 4px; color: #7a5b00; }
 .vide { padding: 40px; text-align: center; color: var(--doux); }
