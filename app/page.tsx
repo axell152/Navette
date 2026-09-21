@@ -8,6 +8,7 @@ import { extractPages } from "@/lib/pdfText";
 import { computeBesoin, type BesoinRow, type Navette, type Statut } from "@/lib/besoin";
 
 const fmt = (n: number) => n.toLocaleString("fr-FR", { maximumFractionDigits: 2 });
+const toggle = <T,>(arr: T[], v: T) => (arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
 const court = (f: string) => f.replace(/\.pdf$/i, "");
 
 async function lirePdf(file: File) {
@@ -46,8 +47,8 @@ export default function Page() {
   const [navettes, setNavettes] = useState<Navette[]>([]);
   const [erreurs, setErreurs] = useState<string[]>([]);
   const [q, setQ] = useState("");
-  const [neg, setNeg] = useState("");
-  const [statut, setStatut] = useState<"" | Statut>("");
+  const [negSel, setNegSel] = useState<string[]>([]);
+  const [statutSel, setStatutSel] = useState<Statut[]>([]);
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "ordre", dir: 1 });
 
   async function onStock(files: File[]) {
@@ -78,7 +79,7 @@ export default function Page() {
   const visibles = useMemo(() => {
     const needle = q.trim().toLowerCase();
     const list = rows.filter(
-      (r) => (!statut || r.statut === statut) && (!neg || r.neg === neg) && (!needle || r.ref.toLowerCase().includes(needle) || r.libelle.toLowerCase().includes(needle))
+      (r) => (!statutSel.length || statutSel.includes(r.statut)) && (!negSel.length || negSel.includes(r.neg)) && (!needle || r.ref.toLowerCase().includes(needle) || r.libelle.toLowerCase().includes(needle))
     );
     return list.sort((a, b) => {
       if (sort.key === "ordre") {
@@ -90,7 +91,7 @@ export default function Page() {
       const c = typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y), "fr");
       return c * sort.dir || a.ref.localeCompare(b.ref);
     });
-  }, [rows, q, neg, statut, sort]);
+  }, [rows, q, negSel, statutSel, sort]);
 
   const nb = (s: Statut) => rows.filter((r) => r.statut === s).length;
   const libStatut = (r: BesoinRow) => (r.statut === "besoin" ? fmt(r.besoin) : r.statut === "couvert" ? "couvert" : "pas de besoin");
@@ -154,24 +155,31 @@ export default function Page() {
         <>
           <div className="bar">
             <input type="search" placeholder="Rechercher article ou libellé" value={q} onChange={(e) => setQ(e.target.value)} />
-            <select value={neg} onChange={(e) => setNeg(e.target.value)}>
-              <option value="">NEG : tous</option>
-              {negs.map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
-            <select value={statut} onChange={(e) => setStatut(e.target.value as "" | Statut)}>
-              <option value="">Statut : tous</option>
-              <option value="besoin">Encore en besoin ({nb("besoin")})</option>
-              <option value="couvert">Couvert par les navettes ({nb("couvert")})</option>
-              <option value="hors">Pas de besoin, dans une navette ({nb("hors")})</option>
-            </select>
+            <div className="chips">
+              <b>NEG</b>
+              {negs.map((n) => (
+                <button key={n} className={`chip${negSel.includes(n) ? " on" : ""}`} onClick={() => setNegSel((s) => toggle(s, n))}>
+                  {n} ({rows.filter((r) => r.neg === n).length})
+                </button>
+              ))}
+            </div>
+            {(negSel.length > 0 || statutSel.length > 0) && (
+              <button className="lien" onClick={() => { setNegSel([]); setStatutSel([]); }}>Tout afficher</button>
+            )}
             <span className="count">{visibles.length} référence(s)</span>
             <button className="btn" disabled={!visibles.length} onClick={exporter}>Exporter en Excel</button>
           </div>
 
           <div className="legende">
-            <span className="rouge">Sous le seuil après réappro ({nb("besoin")})</span>
-            <span className="vert">Au-dessus du seuil après réappro ({nb("couvert")})</span>
-            <span className="bleu">Réappro sans besoin ({nb("hors")})</span>
+            <button className={`chip rouge${statutSel.includes("besoin") ? " on" : ""}`} onClick={() => setStatutSel((s) => toggle(s, "besoin"))}>
+              Sous le seuil après réappro ({nb("besoin")})
+            </button>
+            <button className={`chip vert${statutSel.includes("couvert") ? " on" : ""}`} onClick={() => setStatutSel((s) => toggle(s, "couvert"))}>
+              Au-dessus du seuil après réappro ({nb("couvert")})
+            </button>
+            <button className={`chip bleu${statutSel.includes("hors") ? " on" : ""}`} onClick={() => setStatutSel((s) => toggle(s, "hors"))}>
+              Réappro sans besoin ({nb("hors")})
+            </button>
           </div>
 
           <div className="tablewrap">
