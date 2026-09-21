@@ -118,7 +118,7 @@ export default function Page() {
 
   return (
     <main>
-      <h1>Besoin de stock</h1>
+      <h1>Prévisualisation du Stock d'Avant Navette</h1>
       <p className="sub">Dépose le stock CEGID et les navettes : tu vois les références en besoin après réception, celles couvertes par les navettes, et toutes celles qui sont dans une navette même sans besoin. Tout est calculé dans ton navigateur, rien n&apos;est envoyé.</p>
 
       <div className="zones">
