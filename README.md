@@ -1,11 +1,12 @@
 # Besoin de stock
 
-Dépose le stock CEGID (.xlsx ou .csv) et les navettes (bons de préparation PDF) : le tableau ne montre que les
-références encore en besoin après réception des navettes.
+Dépose le stock CEGID (.xlsx ou .csv) et les navettes (bons de préparation PDF).
 
-- Périmètre : `Stock d'alerte > 0` et `Q. disponible < Stock d'alerte` (comme la feuille BESOIN).
-- `Quantité nécessaire = Seuil mini − Dispo − Attendu navettes`. Les références couvertes par les navettes se
-  réaffichent avec la case à cocher.
+- Le tableau affiche les références sous le seuil (`Stock d'alerte > 0` et `Q. disponible < Stock d'alerte`, comme la
+  feuille BESOIN) **et toutes celles qui figurent dans une navette**, même sans besoin.
+- Trois statuts, filtrables : *Encore en besoin* (après navettes), *Couvert par les navettes*, *Pas de besoin*
+  (dans une navette mais pas sous le seuil).
+- `Quantité nécessaire = Seuil mini − Dispo − Attendu navettes`.
 - Le détail de chaque ligne de navette est affiché (fichier, page, quantité) ; rien n'est masqué. Une référence
   présente sur plusieurs lignes est signalée « plusieurs lignes » et ses quantités sont additionnées pour le calcul.
 - Tout tourne dans le navigateur : aucun fichier n'est envoyé nulle part.
