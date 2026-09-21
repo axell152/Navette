@@ -112,8 +112,8 @@ export default function Page() {
 
   return (
     <main>
-      <h1>Besoin de stock</h1>
-      <p className="sub">Dépose le stock CEGID et les navettes : tu vois les références en besoin après réception, celles couvertes par les navettes, et toutes celles qui sont dans une navette même sans besoin. Tout est calculé dans ton navigateur, rien n&apos;est envoyé.</p>
+      <h1>Visualisation Préalable Avant Navette</h1>
+      <p className="sub">Dépose le stock CEGID et les navettes : En bleu les produits prévus qui ne sont pas sous leurs seuil minimul. En vert les produits qui sont sous leurs seuil minimum mais qui sont couvert par le réapprovsionnement de la navette. En rouge les produits qui sont sous leurs seuil minimum et qui ne sont pas ou pas suffisament réapprovisionné.</p>
 
       <div className="zones">
         <Zone titre="1. Stock CEGID" aide="Glisse le fichier .xlsx (ou .csv) ou clique ici" accept=".xlsx,.xls,.csv,.txt" onFiles={onStock}>
