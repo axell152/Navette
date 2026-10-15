@@ -165,7 +165,7 @@ export default function Page() {
             <div className="files">
               {navettes.map((n) => (
                 <div key={n.fichier}>
-                  <span className={n.lignes.length && !nonLue(n) ? "ok" : ""}>{n.lignes.length && !nonLue(n) ? "✓" : "⚠"} {court(n.fichier)} — {n.lignes.length} lignes, {fmt(n.lignes.reduce((t, l) => t + l.qte, 0))} pièces</span>
+                  <span className={n.lignes.length && !nonLue(n) ? "ok" : ""}>{n.lignes.length && !nonLue(n) ? "✓" : "⚠"} {court(n.fichier)} — {n.lignes.length} lignes, {fmt(n.lignes.reduce((t, l) => t + l.qte, 0))} pièces{n.nbPages ? ` · ${n.nbPages - (n.pagesSansTableau?.length ?? 0)}/${n.nbPages} pages lues` : ""}{(n.ignorees?.length ?? 0) > 0 ? ` · ${n.ignorees!.length} code(s) sans quantité` : ""}</span>
                   <button onClick={() => setNavettes((x) => x.filter((y) => y.fichier !== n.fichier))}>retirer</button>
                 </div>
               ))}
