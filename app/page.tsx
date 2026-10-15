@@ -3,19 +3,20 @@
 import { useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { parseStock, type StockRow } from "@/lib/stock";
-import { parseNavettePages } from "@/lib/navette";
+import { parseNavette } from "@/lib/navette";
 import { extractPages } from "@/lib/pdfText";
 import { computeBesoin, type BesoinRow, type Navette, type Statut } from "@/lib/besoin";
 
 const fmt = (n: number) => n.toLocaleString("fr-FR", { maximumFractionDigits: 2 });
 const toggle = <T,>(arr: T[], v: T) => (arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
 const court = (f: string) => f.replace(/\.pdf$/i, "");
+const nonLue = (n: Navette) => (n.ignorees?.length ?? 0) > 0 || (n.pagesSansTableau?.length ?? 0) > 0;
 
 async function lirePdf(file: File) {
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
   pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
   const doc = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
-  return parseNavettePages(await extractPages(doc));
+  return parseNavette(await extractPages(doc));
 }
 
 function Zone(props: { num: string; rempli?: boolean; titre: string; aide: string; accept: string; multiple?: boolean; onFiles: (f: File[]) => void; children?: React.ReactNode }) {
@@ -50,6 +51,7 @@ const STATUTS: { id: Statut; cls: string; titre: string; aide: string }[] = [
   { id: "besoin", cls: "rouge", titre: "Sous le seuil après réappro", aide: "Sous le seuil minimum, et pas (ou pas assez) réapprovisionnés par la navette." },
   { id: "couvert", cls: "vert", titre: "Au-dessus du seuil après réappro", aide: "Sous le seuil minimum, mais couverts par le réapprovisionnement prévu dans la navette." },
   { id: "hors", cls: "bleu", titre: "Réappro sans besoin", aide: "Prévus dans la navette sans être sous leur seuil minimum." },
+  { id: "inconnue", cls: "gris", titre: "Absente du stock", aide: "Présente dans une navette mais introuvable dans le fichier stock : aucun calcul possible." },
 ];
 
 type SortKey = "ordre" | "ref" | "libelle" | "dispo" | "seuil" | "reserve" | "neg" | "attendu" | "besoin";
@@ -77,8 +79,8 @@ export default function Page() {
   async function onPdfs(files: File[]) {
     for (const f of files.filter((x) => /\.pdf$/i.test(x.name))) {
       try {
-        const lignes = await lirePdf(f);
-        setNavettes((n) => [...n.filter((x) => x.fichier !== f.name), { fichier: f.name, lignes }]);
+        const r = await lirePdf(f);
+        setNavettes((n) => [...n.filter((x) => x.fichier !== f.name), { fichier: f.name, ...r }]);
       } catch (e) {
         setErreurs((x) => [...x, `PDF « ${f.name} » illisible : ${(e as Error).message}`]);
       }
@@ -91,7 +93,7 @@ export default function Page() {
   const visibles = useMemo(() => {
     const needle = q.trim().toLowerCase();
     const list = rows.filter(
-      (r) => (!statutSel.length || statutSel.includes(r.statut)) && (!negSel.length || negSel.includes(r.neg)) && (!needle || r.ref.toLowerCase().includes(needle) || r.libelle.toLowerCase().includes(needle))
+      (r) => (!statutSel.length || statutSel.includes(r.statut)) && (!negSel.length || r.statut === "inconnue" || negSel.includes(r.neg)) && (!needle || r.ref.toLowerCase().includes(needle) || r.libelle.toLowerCase().includes(needle))
     );
     return list.sort((a, b) => {
       if (sort.key === "ordre") {
@@ -106,7 +108,9 @@ export default function Page() {
   }, [rows, q, negSel, statutSel, sort]);
 
   const nb = (s: Statut) => rows.filter((r) => r.statut === s).length;
-  const libStatut = (r: BesoinRow) => (r.statut === "besoin" ? fmt(r.besoin) : r.statut === "couvert" ? "couvert" : "pas de besoin");
+  const libStatut = (r: BesoinRow) => (r.statut === "besoin" ? fmt(r.besoin) : r.statut === "couvert" ? "couvert" : r.statut === "inconnue" ? "absente du stock" : "pas de besoin");
+  const nv = (r: BesoinRow, n: number) => (r.statut === "inconnue" ? "—" : fmt(n)); // pas de valeur de stock pour une référence inconnue
+  const libExport = (r: BesoinRow) => (r.statut === "besoin" ? "En besoin" : r.statut === "couvert" ? "Couvert par les navettes" : r.statut === "inconnue" ? "Absente du stock" : "Pas de besoin");
   const th = (key: SortKey, label: string, cls = "") => (
     <th className={cls} onClick={() => setSort((s) => ({ key, dir: s.key === key ? (s.dir === 1 ? -1 : 1) : key === "besoin" || key === "attendu" ? -1 : 1 }))}>
       {label}{sort.key === key ? (sort.dir === 1 ? " ▲" : " ▼") : ""}
@@ -115,18 +119,35 @@ export default function Page() {
   const detail = (r: BesoinRow) => r.details.map((d) => `${court(d.fichier)} p.${d.page} : ${d.qte}`);
 
   function exporter() {
+    const inc = (r: BesoinRow) => r.statut === "inconnue";
     const aoa = [
       ["Article", "Libellé", "Dispo", "Seuil mini", "Reservé", "NEG", "Attendu navettes", "Quantité nécessaire", "Statut", "Détail navettes"],
-      ...visibles.map((r) => [r.ref, r.libelle, r.dispo, r.seuil, r.reserve, r.neg, r.attendu, r.statut === "besoin" ? r.besoin : 0, r.statut === "besoin" ? "En besoin" : r.statut === "couvert" ? "Couvert par les navettes" : "Pas de besoin", detail(r).join(" | ")]),
+      ...visibles.map((r) => [r.ref, r.libelle, inc(r) ? "" : r.dispo, inc(r) ? "" : r.seuil, inc(r) ? "" : r.reserve, r.neg, r.attendu, inc(r) ? "" : r.statut === "besoin" ? r.besoin : 0, libExport(r), detail(r).join(" | ")]),
     ];
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     ws["!cols"] = [{ wch: 16 }, { wch: 70 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 6 }, { wch: 16 }, { wch: 18 }, { wch: 24 }, { wch: 60 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "BESOIN");
-    XLSX.writeFile(wb, "besoin_stock.xlsx");
+
+    // Feuilles de contrôle, indépendantes des filtres affichés
+    const absentes = rows.filter(inc);
+    if (absentes.length) {
+      const w = XLSX.utils.aoa_to_sheet([["Article", "Attendu navettes", "Détail navettes"], ...absentes.map((r) => [r.ref, r.attendu, detail(r).join(" | ")])]);
+      w["!cols"] = [{ wch: 18 }, { wch: 16 }, { wch: 70 }];
+      XLSX.utils.book_append_sheet(wb, w, "ABSENTES DU STOCK");
+    }
+    const ign = navettes.flatMap((n) => (n.ignorees ?? []).map((l) => [court(n.fichier), l.page, l.ref, "Code lu sans quantité : hors calcul"]));
+    const pagesNL = navettes.flatMap((n) => (n.pagesSansTableau ?? []).map((p) => [court(n.fichier), p, "", "Page sans tableau reconnu : non lue"]));
+    if (ign.length || pagesNL.length) {
+      const w = XLSX.utils.aoa_to_sheet([["Navette", "Page", "Code", "Remarque"], ...ign, ...pagesNL]);
+      w["!cols"] = [{ wch: 30 }, { wch: 8 }, { wch: 18 }, { wch: 40 }];
+      XLSX.utils.book_append_sheet(wb, w, "LIGNES NON LUES");
+    }
+    XLSX.writeFile(wb, `besoin_stock_${new Date().toLocaleDateString("sv-SE")}.xlsx`);
   }
 
   const sansLigne = navettes.filter((n) => n.lignes.length === 0);
+  const avecNonLu = navettes.filter((n) => n.lignes.length > 0 && nonLue(n));
 
   return (
     <main>
@@ -144,7 +165,7 @@ export default function Page() {
             <div className="files">
               {navettes.map((n) => (
                 <div key={n.fichier}>
-                  <span className={n.lignes.length ? "ok" : ""}>{n.lignes.length ? "✓" : "⚠"} {court(n.fichier)} — {n.lignes.length} lignes, {fmt(n.lignes.reduce((t, l) => t + l.qte, 0))} pièces</span>
+                  <span className={n.lignes.length && !nonLue(n) ? "ok" : ""}>{n.lignes.length && !nonLue(n) ? "✓" : "⚠"} {court(n.fichier)} — {n.lignes.length} lignes, {fmt(n.lignes.reduce((t, l) => t + l.qte, 0))} pièces{n.nbPages ? ` · ${n.nbPages - (n.pagesSansTableau?.length ?? 0)}/${n.nbPages} pages lues` : ""}{(n.ignorees?.length ?? 0) > 0 ? ` · ${n.ignorees!.length} code(s) sans quantité` : ""}</span>
                   <button onClick={() => setNavettes((x) => x.filter((y) => y.fichier !== n.fichier))}>retirer</button>
                 </div>
               ))}
@@ -157,14 +178,29 @@ export default function Page() {
       {sansLigne.length > 0 && (
         <div className="warn">Aucune ligne lue dans : {sansLigne.map((n) => court(n.fichier)).join(", ")}. Ce n&apos;est peut-être pas un bon de préparation ABCD, ou le PDF est un scan.</div>
       )}
+      {avecNonLu.map((n) => (
+        <div key={n.fichier} className="warn">
+          <b>{court(n.fichier)}</b> : certaines parties n&apos;ont pas été lues, elles ne sont donc pas dans le calcul.
+          {(n.ignorees?.length ?? 0) > 0 && (
+            <div>
+              {n.ignorees!.length} code(s) vu(s) sans quantité lisible : {n.ignorees!.slice(0, 10).map((l) => `${l.ref} (p.${l.page})`).join(", ")}{n.ignorees!.length > 10 ? "… (liste complète dans l'export)" : ""}
+            </div>
+          )}
+          {(n.pagesSansTableau?.length ?? 0) > 0 && (
+            <div>
+              Page(s) sans tableau reconnu : {n.pagesSansTableau!.join(", ")} sur {n.nbPages ?? "?"}. Vérifie qu&apos;il ne s&apos;agit pas d&apos;une page de lignes.
+            </div>
+          )}
+        </div>
+      ))}
       {inconnues.length > 0 && (
         <div className="warn">
-          {inconnues.length} référence(s) de navette absente(s) du stock : {inconnues.slice(0, 12).map((i) => i.ref).join(", ")}{inconnues.length > 12 ? "…" : ""}
+          {inconnues.length} référence(s) de navette absente(s) du stock : elles sont listées dans le tableau (statut « Absente du stock ») mais ne sont pas calculées. Vérifie le fichier stock ou le code.
         </div>
       )}
 
       <div className="statuts">
-        {STATUTS.map((st) => (
+        {STATUTS.filter((st) => st.id !== "inconnue" || (stock && nb("inconnue") > 0)).map((st) => (
           <button key={st.id} type="button" disabled={!stock} aria-pressed={statutSel.includes(st.id)}
             className={`statut ${st.cls}${statutSel.includes(st.id) ? " on" : ""}`}
             onClick={() => setStatutSel((x) => toggle(x, st.id))}>
@@ -214,9 +250,9 @@ export default function Page() {
                       <td className="c det">{r.ordre ?? ""}</td>
                       <td className="ref">{r.ref}</td>
                       <td className="lib">{r.libelle}</td>
-                      <td className="n">{fmt(r.dispo)}</td>
-                      <td className="n">{fmt(r.seuil)}</td>
-                      <td className="n">{fmt(r.reserve)}</td>
+                      <td className="n">{nv(r, r.dispo)}</td>
+                      <td className="n">{nv(r, r.seuil)}</td>
+                      <td className="n">{nv(r, r.reserve)}</td>
                       <td className="c">{r.neg}</td>
                       <td className="n">{r.attendu ? fmt(r.attendu) : ""}</td>
                       <td className="q"><span className="badge">{libStatut(r)}</span></td>

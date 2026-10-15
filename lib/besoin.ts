@@ -1,9 +1,15 @@
-import type { LigneNavette } from "./navette";
+import type { LigneIgnoree, LigneNavette } from "./navette";
 import type { StockRow } from "./stock";
 
-export type Navette = { fichier: string; lignes: LigneNavette[] };
+export type Navette = {
+  fichier: string;
+  lignes: LigneNavette[];
+  ignorees?: LigneIgnoree[]; // codes lus sans quantité (hors calcul)
+  pagesSansTableau?: number[]; // pages non lues (en-tête du tableau non reconnu)
+  nbPages?: number;
+};
 export type DetailNavette = { fichier: string; page: number; qte: number };
-export type Statut = "besoin" | "couvert" | "hors";
+export type Statut = "besoin" | "couvert" | "hors" | "inconnue";
 export type BesoinRow = StockRow & {
   attendu: number; // total des navettes pour cette référence
   details: DetailNavette[]; // chaque ligne de navette, jamais fusionnée
@@ -11,7 +17,8 @@ export type BesoinRow = StockRow & {
   besoin: number; // seuil - dispo - attendu  (> 0 : encore en besoin après navettes)
   ordre: number | null; // rang de la 1re apparition dans les navettes (ordre des PDF, de haut en bas) ; null si absente
   statut: Statut; // besoin = sous le seuil et pas couvert ; couvert = sous le seuil mais couvert par les navettes ;
-  //                 hors = pas sous le seuil, présent dans une navette
+  //                 hors = pas sous le seuil, présent dans une navette ;
+  //                 inconnue = présente dans une navette mais absente du fichier stock (non calculée)
 };
 
 // Lignes affichées : les références sous le seuil (critère de la feuille BESOIN : seuil > 0 et dispo < seuil)
@@ -40,6 +47,13 @@ export function computeBesoin(stock: StockRow[], navettes: Navette[]) {
     const statut: Statut = !sousSeuil ? "hors" : besoin > 0 ? "besoin" : "couvert";
     rows.push({ ...s, attendu, details, doublon: details.length > 1, besoin, ordre: ordreRef.get(s.ref) ?? null, statut });
   }
+  // Références de navette absentes du stock : listées dans le tableau, jamais masquées (pas de calcul possible)
+  for (const { ref, details } of inconnues)
+    rows.push({
+      ref, libelle: "(absente du stock)", dispo: 0, seuil: 0, reserve: 0, neg: "",
+      attendu: details.reduce((t, d) => t + d.qte, 0), details, doublon: details.length > 1,
+      besoin: 0, ordre: ordreRef.get(ref) ?? null, statut: "inconnue",
+    });
   rows.sort((a, b) => b.besoin - a.besoin || a.ref.localeCompare(b.ref));
 
   return { rows, inconnues };

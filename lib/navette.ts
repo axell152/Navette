@@ -6,22 +6,32 @@
 export type TextItem = { str: string; x: number; y: number; w: number };
 export type PageText = { width: number; items: TextItem[] };
 export type LigneNavette = { ref: string; qte: number; page: number };
+// Code repéré dans la colonne "Code" mais sans quantité lisible sur sa ligne : il n'entre PAS dans le calcul.
+export type LigneIgnoree = { ref: string; page: number };
+export type ResultatNavette = {
+  lignes: LigneNavette[];
+  ignorees: LigneIgnoree[]; // codes vus sans quantité
+  pagesSansTableau: number[]; // pages où l'en-tête du tableau n'a pas été reconnu (donc non lues)
+  nbPages: number;
+};
 
 const CODE_RE = /^[A-Z][A-Z0-9+\-./]{3,}$/;
 const clean = (s: string) => s.replace(/[\s\u00a0]/g, "");
 
-export function parseNavettePages(pages: PageText[]): LigneNavette[] {
-  const out: LigneNavette[] = [];
+export function parseNavette(pages: PageText[]): ResultatNavette {
+  const lignes: LigneNavette[] = [];
+  const ignorees: LigneIgnoree[] = [];
+  const pagesSansTableau: number[] = [];
   pages.forEach((page, idx) => {
     const items = page.items.filter((i) => i.str.trim() !== "");
 
     // En-têtes : "Code" (colonne de gauche) et "Qté à livr."
     const head = items.find((i) => i.str.trim() === "Code" && i.x < page.width * 0.15);
-    if (!head) return; // page sans tableau
+    if (!head) { pagesSansTableau.push(idx + 1); return; } // page sans tableau
     const rowItems = items.filter((i) => Math.abs(i.y - head.y) < 3);
     const qteLeft = rowItems.find((i) => /^Qt[ée]/.test(i.str.trim()));
     const qteRight = rowItems.find((i) => /livr/.test(i.str));
-    if (!qteLeft || !qteRight) return;
+    if (!qteLeft || !qteRight) { pagesSansTableau.push(idx + 1); return; }
     const xMin = qteLeft.x - 4;
     const xMax = qteRight.x + qteRight.w + 6;
     const codeMax = page.width * 0.121;
@@ -40,10 +50,16 @@ export function parseNavettePages(pages: PageText[]): LigneNavette[] {
     );
 
     for (const c of codes) {
+      const ref = c.str.trim().toUpperCase();
       const mine = qtes.filter((q) => Math.abs(q.y - c.y) <= 6).sort((a, b) => a.x - b.x);
-      if (!mine.length) continue;
-      out.push({ ref: c.str.trim().toUpperCase(), qte: Number(mine.map((q) => clean(q.str)).join("")), page: idx + 1 });
+      if (!mine.length) { ignorees.push({ ref, page: idx + 1 }); continue; }
+      lignes.push({ ref, qte: Number(mine.map((q) => clean(q.str)).join("")), page: idx + 1 });
     }
   });
-  return out;
+  return { lignes, ignorees, pagesSansTableau, nbPages: pages.length };
+}
+
+// Compatibilité (script test:pdf) : uniquement les lignes lues.
+export function parseNavettePages(pages: PageText[]): LigneNavette[] {
+  return parseNavette(pages).lignes;
 }
